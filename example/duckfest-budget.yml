@@ -1,0 +1,9 @@
+duckfest:
+  name: Duckfest 2023
+  date: 2023-06-03
+  location: 15 Yemen Road, Yemen
+  items:
+    venue:  15000
+    av:      8000
+    travel:  5000
+    swag:    1000

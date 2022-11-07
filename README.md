@@ -102,6 +102,31 @@ dictionary with the following keys:
 
 * `note`: Some note about what this transaction is.
 
+Here's an example:
+
+    - date:   2023-05-20
+      event:  duckfest
+      item:   swag
+      amount: 870
+    - date:   2023-06-03
+      event:  duckfest
+      item:   venue
+      amount: 12350
+    - date:   2023-06-03
+      event:  duckfest
+      item:   av
+      amount: 8600
+    - date:   2023-06-10
+      event:  duckfest
+      item:   travel
+      amount: 2100
+      note:   "Hotel and meals for Rupert"
+    - date:   2023-06-12
+      event:  duckfest
+      item:   travel
+      amount: 2400
+      note:   "Hotel and meals for Wanda"
+
 It's perfectly ok to add information using other keys to the dictionaries
 for budgets or events. budgetxt will just ignore any keys it's not looking
 for. But keep in mind we might add functionality later that uses new keys,
