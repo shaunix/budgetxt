@@ -120,12 +120,12 @@ Here's an example:
       event:  duckfest
       item:   travel
       amount: 2100
-      note:   "Hotel and meals for Rupert"
+      note:   "Flight and hotel for Rupert"
     - date:   2023-06-12
       event:  duckfest
       item:   travel
       amount: 2400
-      note:   "Hotel and meals for Wanda"
+      note:   "Flight and hotel for Wanda"
 
 It's perfectly ok to add information using other keys to the dictionaries
 for budgets or events. budgetxt will just ignore any keys it's not looking
