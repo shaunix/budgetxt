@@ -1,0 +1,169 @@
+#!/usr/bin/env python3                                                                                                         
+#
+# Copyright (c) 2022 Shaun McCance <shaunm@gnome.org>
+#
+# budgetxt is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
+#
+# budgetxt is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with ITS Tool; if not, write to the Free Software Foundation, 59 Temple
+# Place, Suite 330, Boston, MA  0211-1307  USA.
+
+import sys
+import yaml
+
+class Budget:
+    def __init__(self):
+        self.event_names = {}
+        self.event_dates = {}
+        self.event_locations = {}
+        self.by_event = {}
+        self.by_event_item = {}
+        self.by_item = {}
+
+    def init_event(self, event):
+        self.by_event.setdefault(event, {})
+        self.by_event[event].setdefault('budget', 0)
+        self.by_event[event].setdefault('actual', 0)
+
+    def init_event_item(self, event, item):
+        self.by_event_item.setdefault(event, {})
+        self.by_event_item[event].setdefault(item, {})
+        self.by_event_item[event][item].setdefault('budget', 0)
+        self.by_event_item[event][item].setdefault('actual', 0)
+        self.by_item.setdefault(item, {})
+        self.by_item[item].setdefault('budget', 0)
+        self.by_item[item].setdefault('actual', 0)
+
+    def get_events(self):
+        events = list(self.by_event.keys())
+        events.sort(key = lambda x: self.event_dates.get(x, ''))
+        return events
+
+    def get_event_name(self, event):
+        return self.event_names.get(event, event)
+
+    def get_event_budget(self, event):
+        return self.by_event.get(event, {}).get('budget', 0)
+
+    def get_event_actual(self, event):
+        return self.by_event.get(event, {}).get('actual', 0)
+
+    def get_event_item_budget(self, event, item):
+        return self.by_event_item.get(event, {}).get(item, {}).get('budget', 0)
+
+    def get_event_item_actual(self, event, item):
+        return self.by_event_item.get(event, {}).get(item, {}).get('actual', 0)
+
+    def get_item_budget(self, item):
+        return self.by_item.get(item, {}).get('budget', 0)
+
+    def get_item_actual(self, item):
+        return self.by_item.get(item, {}).get('actual', 0)
+
+    def get_total_budget(self):
+        return sum([self.by_item[item]['budget'] for item in self.by_item])
+
+    def get_total_actual(self):
+        return sum([self.by_item[item]['actual'] for item in self.by_item])
+
+    def add_budget(self, event, data):
+        self.init_event(event)
+        if 'name' in data:
+            self.event_names.setdefault(event, data['name'])
+        if 'location' in data:
+            self.event_locations.setdefault(event, data['location'])
+        if 'date' in data:
+            date = str(data['date'])
+            if event in self.event_dates:
+                if date < self.event_dates[event]:
+                    self.event_dates[event] = date
+            else:
+                self.event_dates[event] = date
+        for item in data.get('items', {}):
+            self.init_event_item(event, item)
+            self.by_event[event]['budget'] += data['items'][item]
+            self.by_event_item[event][item]['budget'] += data['items'][item]
+            self.by_item[item]['budget'] += data['items'][item]
+
+    def add_actual(self, actual):
+        event = actual.get('event')
+        if event is None:
+            print('actual missing event')
+            return
+        item = actual.get('item')
+        if item is None:
+            print('actual missing item')
+            return
+        amount = actual.get('amount')
+        if amount is None:
+            print('actual missing amount')
+            return
+        self.init_event(event)
+        self.init_event_item(event, item)
+        self.by_event[event]['actual'] += amount
+        self.by_event_item[event][item]['actual'] += amount
+        self.by_item[item]['actual'] += amount
+
+budget = Budget()
+
+args = sys.argv[1:]
+while len(args) > 0:
+    arg = args.pop(0)
+    with open(arg) as fd:
+        data = yaml.load(fd, yaml.Loader)
+        if data is None:
+            # This happens for empty files, and sometimes it's useful
+            # to stub those and include them
+            pass
+        elif 'budget' in arg:
+            for event in data:
+                budget.add_budget(event, data[event])
+        elif 'actual' in arg:
+            for actual in data:
+                budget.add_actual(actual)
+        else:
+            print("unrecognized file " + arg)
+
+events = budget.get_events()
+
+print('# By Event and Item')
+for event in events:
+    name = budget.event_names.get(event, event)
+    print(name)
+    for item in budget.by_event_item[event]:
+        bud = budget.by_event_item[event][item]['budget']
+        act = budget.by_event_item[event][item]['actual']
+        print('  %s%s%6i  %6i' %
+              (item, (23- len(item)) * ' ',
+               budget.get_event_item_budget(event, item),
+               budget.get_event_item_actual(event, item) ))
+    
+
+print('\n# By Event')
+for event in events:
+    name = budget.get_event_name(event)
+    print('%s%s%6i  %6i' %
+          (name, (25 - len(name)) * ' ',
+           budget.get_event_budget(event),
+           budget.get_event_actual(event) ))
+
+print('\n# By Item')
+for item in budget.by_item:
+    print('%s%s%6i  %6i' %
+          (item, (25 - len(item)) * ' ',
+           budget.get_item_budget(item),
+           budget.get_item_actual(item) ))
+
+print('\n# TOTAL')
+print('TOTAL                    %6i  %6i' % (
+    budget.get_total_budget(),
+    budget.get_total_actual() ))
+
