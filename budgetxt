@@ -27,6 +27,7 @@ class Budget:
         self.by_event = {}
         self.by_event_item = {}
         self.by_item = {}
+        self.by_item_quarter = {}
 
     def init_event(self, event):
         self.by_event.setdefault(event, {})
@@ -41,6 +42,9 @@ class Budget:
         self.by_item.setdefault(item, {})
         self.by_item[item].setdefault('budget', 0)
         self.by_item[item].setdefault('actual', 0)
+        self.by_item_quarter.setdefault(item, {})
+        self.by_item_quarter[item].setdefault('budget', [0, 0, 0, 0])
+        self.by_item_quarter[item].setdefault('actual', [0, 0, 0, 0])
 
     def get_events(self):
         events = list(self.by_event.keys())
@@ -65,8 +69,14 @@ class Budget:
     def get_item_budget(self, item):
         return self.by_item.get(item, {}).get('budget', 0)
 
+    def get_item_budget_quarter(self, item, quarter):
+        return self.by_item_quarter.get(item, {}).get('budget', [0, 0, 0, 0])[quarter]
+
     def get_item_actual(self, item):
         return self.by_item.get(item, {}).get('actual', 0)
+
+    def get_item_actual_quarter(self, item, quarter):
+        return self.by_item_quarter.get(item, {}).get('actual', [0, 0, 0, 0])[quarter]
 
     def get_total_budget(self):
         return sum([self.by_item[item]['budget'] for item in self.by_item])
@@ -82,16 +92,20 @@ class Budget:
             self.event_locations.setdefault(event, data['location'])
         if 'date' in data:
             date = str(data['date'])
+            quarter = (int(date.split('-')[1]) - 1) // 3
             if event in self.event_dates:
                 if date < self.event_dates[event]:
                     self.event_dates[event] = date
             else:
                 self.event_dates[event] = date
+        else:
+            quarter = 3 # it's gotta go somewhere
         for item in data.get('items', {}):
             self.init_event_item(event, item)
             self.by_event[event]['budget'] += data['items'][item]
             self.by_event_item[event][item]['budget'] += data['items'][item]
             self.by_item[item]['budget'] += data['items'][item]
+            self.by_item_quarter[item]['budget'][quarter] += data['items'][item]
 
     def add_actual(self, actual):
         event = actual.get('event')
@@ -106,17 +120,26 @@ class Budget:
         if amount is None:
             print('actual missing amount')
             return
+        if 'date' in actual:
+            date = str(actual['date'])
+            quarter = (int(date.split('-')[1]) - 1) // 3
+        else:
+            quarter = 3 # it's gotta go somewhere
         self.init_event(event)
         self.init_event_item(event, item)
         self.by_event[event]['actual'] += amount
         self.by_event_item[event][item]['actual'] += amount
         self.by_item[item]['actual'] += amount
+        self.by_item_quarter[item]['actual'][quarter] += amount
 
 budget = Budget()
 
 args = sys.argv[1:]
 while len(args) > 0:
     arg = args.pop(0)
+    if arg.endswith('~'):
+        # skip backup files to make it easier to glob on cmd line
+        continue
     with open(arg) as fd:
         data = yaml.load(fd, yaml.Loader)
         if data is None:
@@ -156,11 +179,29 @@ for event in events:
            budget.get_event_actual(event) ))
 
 print('\n# By Item')
-for item in budget.by_item:
+for item in sorted(budget.by_item):
     print('%s%s%6i  %6i' %
           (item, (25 - len(item)) * ' ',
            budget.get_item_budget(item),
            budget.get_item_actual(item) ))
+
+print('\n# By Item Quarter')
+qtot = [0, 0, 0, 0, 0, 0, 0, 0]
+for item in sorted(budget.by_item):
+    for i in range(4):
+        qtot[2*i] += budget.get_item_budget_quarter(item, i)
+        qtot[2*i+1] += budget.get_item_actual_quarter(item, i)
+    print('%s%s%6i  %6i |%6i  %6i |%6i  %6i |%6i  %6i' %
+          (item, (25 - len(item)) * ' ',
+           budget.get_item_budget_quarter(item, 0),
+           budget.get_item_actual_quarter(item, 0),
+           budget.get_item_budget_quarter(item, 1),
+           budget.get_item_actual_quarter(item, 1),
+           budget.get_item_budget_quarter(item, 2),
+           budget.get_item_actual_quarter(item, 2),
+           budget.get_item_budget_quarter(item, 3),
+           budget.get_item_actual_quarter(item, 3) ))
+print('TOTAL                    %6i  %6i |%6i  %6i |%6i  %6i |%6i  %6i' % tuple(qtot))
 
 print('\n# TOTAL')
 print('TOTAL                    %6i  %6i' % (
